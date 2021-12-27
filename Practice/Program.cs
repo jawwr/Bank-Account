@@ -19,28 +19,12 @@ namespace Practice
 
         public int Score(DateTime date)
         {
-            var sorted = _moneyOperations.Where(x => x.Date <= date);
+            IEnumerable<MoneyOperation> sorted = _moneyOperations.Where(x => x.Date <= date);
             int score = _startScore;
             foreach (var operation in sorted)
             {
-                switch (operation.OperationName)
-                {
-                    case "in":
-                        score += operation.Money;
-                        break;
-                    case "out":
-                        score -= operation.Money;
-                        break;
-                    case "revert":
-                        var findOperation = _moneyOperations.Find(x => x.Date == operation.Date);
-                        if (findOperation.OperationName == "in")
-                            score -= findOperation.Money;
-                        else
-                            score += findOperation.Money;
-                        break;
-                }
+                score = FindScore(operation, score);
             }
-
             return score;
         }
 
@@ -49,26 +33,32 @@ namespace Practice
             int score = _startScore;
             foreach (var operation in _moneyOperations)
             {
-                switch (operation.OperationName)
-                {
-                    case "in":
-                        score += operation.Money;
-                        break;
-                    case "out":
-                        score -= operation.Money;
-                        break;
-                    case "revert":
-                        var findOperation = _moneyOperations.Find(x => x.Date == operation.Date);
-                        if (findOperation.OperationName == "in")
-                            score -= findOperation.Money;
-                        else
-                            score += findOperation.Money;
-                        break;
-                }
-
-                if (score < 0)
-                    throw new Exception("расход превысил остаток по карте");
+                score = FindScore(operation, score);
             }
+            if (score < 0)
+                throw new Exception("Расход превысил остаток по карте");
+            return score;
+        }
+
+        private int FindScore(MoneyOperation operation, int score)
+        {
+            switch (operation.OperationName)
+            {
+                case "in":
+                    score += operation.Money;
+                    break;
+                case "out":
+                    score -= operation.Money;
+                    break;
+                case "revert":
+                    var findOperation = _moneyOperations.Find(x => x.Date == operation.Date);
+                    if (findOperation.OperationName == "in")
+                        score -= findOperation.Money;
+                    else
+                        score += findOperation.Money;
+                    break;
+            }
+
             return score;
         }
     }
@@ -118,8 +108,6 @@ namespace Practice
                     moneyOperation = new MoneyOperation(DateTimeParse(lineSplit[0]), lineSplit[1]);
                 moneyOperations.Add(moneyOperation);
             }
-            
-
             return moneyOperations;
         }
 
@@ -128,6 +116,6 @@ namespace Practice
             DateTime dateTime;
             DateTime.TryParseExact(date, "yyyy-MM-dd hh:mm",CultureInfo.InvariantCulture, DateTimeStyles.None, out dateTime);
             return dateTime;
-        } 
+        }
     }
 }
