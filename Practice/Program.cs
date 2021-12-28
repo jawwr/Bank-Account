@@ -8,77 +8,83 @@ namespace Practice
 {
     class Account
     {
-        private readonly int _startScore;
+        private readonly int _score;
         private readonly List<MoneyOperation> _moneyOperations;
 
-        public Account(List<MoneyOperation> moneyOperations, int startScore)
+        public Account(List<MoneyOperation> moneyOperations, int score)
         {
             _moneyOperations = moneyOperations;
-            _startScore = startScore;
+            _score = score;
         }
 
         public int Score(DateTime date)
         {
-            IEnumerable<MoneyOperation> sorted = _moneyOperations.Where(x => x.Date <= date);
-            int score = _startScore;
+            var sorted = _moneyOperations.Where(x => x.Date <= date);
+            int score = _score;
             foreach (var operation in sorted)
             {
-                score = FindScore(operation, score);
+                score = operation.Operation.Calculate(score, operation, _moneyOperations);
             }
             return score;
         }
 
         public int Score()
         {
-            int score = _startScore;
+            int score = _score;
             foreach (var operation in _moneyOperations)
             {
-                score = FindScore(operation, score);
+                score = operation.Operation.Calculate(score, operation, _moneyOperations);
             }
             if (score < 0)
                 throw new Exception("Расход превысил остаток по карте");
             return score;
         }
+    }
 
-        private int FindScore(MoneyOperation operation, int score)
+    interface IOperation
+    {
+        public int Calculate(int score, MoneyOperation operation, List<MoneyOperation> operations);
+    }
+
+    sealed class In : IOperation
+    {
+        public int Calculate(int score, MoneyOperation operation, List<MoneyOperation> operations) => score + operation.Money;
+    }
+
+    sealed class Out : IOperation
+    {
+        public int Calculate(int score, MoneyOperation operation, List<MoneyOperation> operations) => score - operation.Money;
+    }
+
+    sealed class Revert : IOperation
+    {
+        public int Calculate(int score, MoneyOperation operation, List<MoneyOperation> operations)
         {
-            switch (operation.OperationName)
-            {
-                case "in":
-                    score += operation.Money;
-                    break;
-                case "out":
-                    score -= operation.Money;
-                    break;
-                case "revert":
-                    var findOperation = _moneyOperations.Find(x => x.Date == operation.Date);
-                    if (findOperation.OperationName == "in")
-                        score -= findOperation.Money;
-                    else
-                        score += findOperation.Money;
-                    break;
-            }
-
+            var findOperation = operations.Find(x => x.Date == operation.Date);
+            if (findOperation.Operation is In)
+                score -= findOperation.Money;
+            else
+                score += findOperation.Money;
             return score;
         }
     }
     class MoneyOperation
     {
-        public DateTime Date { get; }
-        public int Money { get; }
-        public string OperationName { get; }
+        public readonly DateTime Date;
+        public readonly int Money;
+        public readonly IOperation Operation;
 
-        public MoneyOperation(DateTime date, int money, string operationName)
+        public MoneyOperation(DateTime date, int money, IOperation operation)
         {
             Date = date;
             Money = money;
-            OperationName = operationName;
+            Operation = operation;
         }
 
-        public MoneyOperation(DateTime date, string operationName)
+        public MoneyOperation(DateTime date, IOperation operation)
         {
             Date = date;
-            OperationName = operationName;
+            Operation = operation;
         }
     }
     class Program
@@ -88,7 +94,7 @@ namespace Practice
             List<MoneyOperation> operations = ReadFile();
             Account account = new Account(operations, StartScore());
             Console.WriteLine(account.Score());
-            Console.WriteLine(account.Score(DateTimeParse("2021-06-01 12:10")));
+            Console.WriteLine(account.Score(DateTimeParse("2021-06-01 12:05")));
         }
 
         static int StartScore() => int.Parse(File.ReadAllLines("File.txt")[0]);
@@ -102,13 +108,28 @@ namespace Practice
                 string[] lineSplit = file[i].Split(" | ");
                 MoneyOperation moneyOperation;
                 if (lineSplit.Length == 3)
-                    moneyOperation = new MoneyOperation(DateTimeParse(lineSplit[0]), int.Parse(lineSplit[1]),
-                        lineSplit[2]);
+                    moneyOperation = new MoneyOperation(DateTimeParse(lineSplit[0]), int.Parse(lineSplit[1]), SetOperation(lineSplit[2])
+                        );
                 else
-                    moneyOperation = new MoneyOperation(DateTimeParse(lineSplit[0]), lineSplit[1]);
+                    moneyOperation = new MoneyOperation(DateTimeParse(lineSplit[0]),SetOperation(lineSplit[1]));
                 moneyOperations.Add(moneyOperation);
             }
             return moneyOperations;
+        }
+
+        static IOperation SetOperation(string operation)
+        {
+            switch (operation)
+            {
+                case "in":
+                    return new In();
+                case "out":
+                    return new Out();
+                case "revert":
+                    return new Revert();
+            }
+
+            return new Revert();
         }
 
         static DateTime DateTimeParse(string date)
